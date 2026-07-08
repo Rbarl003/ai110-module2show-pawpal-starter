@@ -1,0 +1,63 @@
+classDiagram
+    %% PawPal+ — final implementation (pawpal_system.py)
+    %% Owner has many Pets, each Pet has many Tasks.
+    %% Scheduler is the controller that works across all of an owner's pets.
+
+    class Task {
+        +str description
+        +int time
+        +str frequency
+        +bool completed
+        +str|None start_time
+        +date|None last_completed
+        +date|None due_date
+        +mark_complete(on date) None
+        +mark_incomplete() None
+        +next_occurrence(completed_on date) Task|None
+        +start_minute() int|None
+        +end_minute() int|None
+        +is_due(today date) bool
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +list~Task~ tasks
+        +add_task(task Task) None
+        +describe() str
+    }
+
+    class Owner {
+        +str name
+        +list~Pet~ pets
+        +add_pet(pet Pet) None
+        +get_all_tasks() list~Task~
+    }
+
+    class Scheduler {
+        +Owner owner
+        +get_all_tasks() list~Task~
+        +pending_tasks() list~Task~
+        +completed_tasks() list~Task~
+        +tasks_by_frequency(frequency str) list~Task~
+        +sorted_by_time(ascending bool) list~Task~
+        +sorted_by_start_time() list~Task~
+        +filter_tasks(pet, completed, frequency) list~Task~
+        +complete_task(task Task, on date) Task|None
+        +due_tasks(today date) list~Task~
+        +detect_conflicts() list~tuple~
+        +grouped_conflicts() list~tuple~
+        +pet_of(task Task) Pet|None
+        +describe_task(task Task) str
+        +conflict_warnings() list~str~
+        -_start_minute(task Task) int|None
+    }
+
+    %% Module-level helpers used by Task/Scheduler for time math:
+    %% time_to_minutes(clock) int, minutes_to_time(minutes) str, FREQUENCY_DAYS dict
+
+    Owner "1" o-- "*" Pet : has
+    Pet "1" o-- "*" Task : has
+    Scheduler "1" --> "1" Owner : controls
+    Scheduler ..> Task : organizes
+    Scheduler ..> Pet : looks up owner of task

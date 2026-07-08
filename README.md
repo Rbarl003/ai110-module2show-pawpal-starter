@@ -121,12 +121,51 @@ out the new date with `timedelta`.
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+Run the app with `streamlit run app.py` (or the quick text demo with `python main.py`),
+then follow along:
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+1. **Set the owner.** Type the owner's name — say **Jordan**.
+2. **Add a pet.** Give it a name and species, like **Biscuit** the dog.
+3. **Add a task.** Pick the pet, then enter a title, how long it takes, daily or
+   weekly, and a start time — e.g. **Morning walk**, 30 min, daily, at **08:00**.
+4. **Add another at the same time.** Add **Medication** at **08:00** too, so there's
+   a clash to catch.
+5. **Find tasks.** Use the filters to narrow the list by pet, status, or frequency.
+6. **Build the schedule.** Choose "time of day" (or shortest/longest first) and
+   generate it. PawPal+ lists the tasks in order and warns at the top that the walk
+   and medication clash at 08:00 — you can't be in two places at once.
+7. **Check a task off.** In *Today's Tasks*, mark the walk done. Because it's daily,
+   PawPal+ quietly schedules tomorrow's walk for you.
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+Those steps show the key Scheduler behaviors: **sorting** the day, **filtering**
+tasks, a **conflict warning** for overlapping times, and **recurrence** when a daily
+task rolls over.
+
+Here's what the text demo (`python main.py`) prints:
+
+```
+------------------------------------------------
+             PAWPAL+ SCHEDULE DEMO
+                 Owner: Jordan
+------------------------------------------------
+
+Sorted by TIME OF DAY:
+   [ ] 08:00  Morning walk          30 min
+   [ ] 08:00  Medication            10 min
+   [✓] 08:15  Feeding                5 min
+   [ ] 08:20  Feeding               10 min
+   [ ] 09:00  Vet visit             60 min
+   [ ]   —    Nap check              2 min
+
+Conflict check:
+   ⚠️ Biscuit: Morning walk (08:00) is scheduled at the same time as Mochi: Medication (08:00), Mochi: Feeding (08:15), Biscuit: Feeding (08:20)
+
+Completing a recurring task:
+   Marking 'Morning walk' complete on 2026-07-07...
+   ↻ Auto-scheduled next 'Morning walk' (daily) due 2026-07-08.
+
+------------------------------------------------
+5 tasks still to do, 112 minutes of care remaining.
+------------------------------------------------
+```
+
