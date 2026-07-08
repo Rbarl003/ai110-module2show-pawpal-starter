@@ -172,9 +172,12 @@ class Scheduler:
         have no place on the timeline, so they sink to the end.
         """
         # A huge sentinel key parks unscheduled tasks after every real time.
+        # Route through _start_minute so a malformed time (e.g. '8am') is
+        # treated like an unscheduled task and sinks to the end, rather than
+        # raising — matching how detect_conflicts already tolerates bad values.
         return sorted(
             self.get_all_tasks(),
-            key=lambda t: t.start_minute() if t.start_time is not None else 24 * 60,
+            key=lambda t: m if (m := self._start_minute(t)) is not None else 24 * 60,
         )
 
     # --- 2. Filtering by pet / status ---------------------------------------

@@ -371,3 +371,165 @@ def test_unscheduled_tasks_never_conflict():
     scheduler = Scheduler(owner)
 
     assert scheduler.detect_conflicts() == []
+
+
+# =============================================================================
+# Assignment suite: sorting correctness, recurrence logic, conflict detection,
+# plus the edge cases most likely to break a pet scheduler.
+# =============================================================================
+
+# --- Sorting correctness: chronological order -------------------------------
+def test_sorted_by_start_time_is_chronological():
+    """Tasks added out of order come back in true time-of-day order.
+
+    Tasks are inserted deliberately shuffled. sorted_by_start_time() must
+    return them earliest-clock-time first, regardless of insertion order.
+    """
+    owner = Owner("Jordan")
+    pet = Pet("Biscuit", "dog")
+    owner.add_pet(pet)
+    # Added out of order on purpose.
+    pet.add_task(Task("Evening walk", 30, "daily", start_time="18:00"))
+    pet.add_task(Task("Breakfast", 10, "daily", start_time="07:30"))
+    pet.add_task(Task("Lunch", 15, "daily", start_time="12:00"))
+    scheduler = Scheduler(owner)
+
+    order = [t.start_time for t in scheduler.sorted_by_start_time()]
+
+    assert order == ["07:30", "12:00", "18:00"]     # strictly ascending clock
+
+
+def test_sorted_by_time_is_stable_on_ties():
+    """Equal-duration tasks keep their original insertion order (stable sort)."""
+    owner = Owner("Jordan")
+    pet = Pet("Biscuit", "dog")
+    owner.add_pet(pet)
+    pet.add_task(Task("First", 10, "daily"))
+    pet.add_task(Task("Second", 10, "daily"))       # same duration as First
+    scheduler = Scheduler(owner)
+
+    order = [t.description for t in scheduler.sorted_by_time()]
+
+    assert order == ["First", "Second"]             # tie -> original order kept
+
+
+# --- Recurrence logic: completing a daily task schedules the next day -------
+def test_completing_daily_task_creates_task_for_next_day():
+    """Marking a DAILY task complete spawns a fresh copy due the following day.
+
+    This is the core recurrence guarantee: the original is marked done, and a
+    brand-new (uncompleted) occurrence appears on the same pet, due +1 day.
+    """
+    owner = Owner("Jordan")
+    pet = Pet("Biscuit", "dog")
+    owner.add_pet(pet)
+    pet.add_task(Task("Morning walk", 30, "daily", start_time="08:00"))
+    scheduler = Scheduler(owner)
+    today = date(2026, 7, 7)
+
+    upcoming = scheduler.complete_task(pet.tasks[0], on=today)
+
+    assert pet.tasks[0].completed is True           # original is now done
+    assert upcoming is not None                     # a next occurrence exists
+    assert upcoming.completed is False              # the new one is fresh
+    assert upcoming.due_date == date(2026, 7, 8)    # due the FOLLOWING day
+    assert upcoming.start_time == "08:00"           # same time of day preserved
+    assert upcoming in pet.tasks                    # attached to the same pet
+
+
+# --- Conflict detection: flag duplicate (identical) start times -------------
+def test_conflict_detection_flags_duplicate_times():
+    """Two tasks booked at the EXACT same time are flagged as a conflict."""
+    owner = Owner("Jordan")
+    dog = Pet("Biscuit", "dog")
+    cat = Pet("Mochi", "cat")
+    owner.add_pet(dog)
+    owner.add_pet(cat)
+    dog.add_task(Task("Walk", 30, "daily", start_time="08:00"))
+    cat.add_task(Task("Medication", 10, "daily", start_time="08:00"))   # duplicate
+    scheduler = Scheduler(owner)
+
+    conflicts = scheduler.detect_conflicts()
+
+    assert len(conflicts) == 1
+    clashing = {conflicts[0][0].description, conflicts[0][1].description}
+    assert clashing == {"Walk", "Medication"}
+
+
+def test_three_tasks_at_same_time_all_flagged():
+    """Three identical-time tasks produce all pairwise conflicts, one anchor."""
+    owner = Owner("Jordan")
+    pet = Pet("Biscuit", "dog")
+    owner.add_pet(pet)
+    pet.add_task(Task("A", 10, "daily", start_time="08:00"))
+    pet.add_task(Task("B", 10, "daily", start_time="08:00"))
+    pet.add_task(Task("C", 10, "daily", start_time="08:00"))
+    scheduler = Scheduler(owner)
+
+    # 3 tasks all overlapping -> C(3,2) = 3 conflicting pairs.
+    assert len(scheduler.detect_conflicts()) == 3
+    # grouped_conflicts() collapses by ANCHOR (the earlier task of each pair),
+    # so we get A -> [B, C] and B -> [C]. C never anchors (nothing starts after
+    # it). That's 2 report lines, not 1.
+    groups = scheduler.grouped_conflicts()
+    assert len(groups) == 2
+    assert groups[0][0].description == "A"
+    assert [t.description for t in groups[0][1]] == ["B", "C"]
+    assert groups[1][0].description == "B"
+    assert [t.description for t in groups[1][1]] == ["C"]
+
+
+# --- Edge case: an empty schedule must not crash ----------------------------
+def test_empty_owner_returns_empty_never_raises():
+    """A scheduler with no pets/tasks returns empties instead of crashing."""
+    scheduler = Scheduler(Owner("Jordan"))
+
+    assert scheduler.sorted_by_time() == []
+    assert scheduler.sorted_by_start_time() == []
+    assert scheduler.due_tasks(date(2026, 7, 7)) == []
+    assert scheduler.detect_conflicts() == []
+    assert scheduler.conflict_warnings() == []
+
+
+def test_pet_with_no_tasks_is_ignored():
+    """A pet that has no tasks contributes nothing and causes no error."""
+    owner = Owner("Jordan")
+    owner.add_pet(Pet("Empty", "other"))            # pet with zero tasks
+    scheduler = Scheduler(owner)
+
+    assert scheduler.get_all_tasks() == []
+    assert scheduler.conflict_warnings() == []
+
+
+# --- Edge case: recurrence needs a completion date to advance ---------------
+def test_next_occurrence_needs_a_completion_date():
+    """A recurring task never completed has nothing to roll forward from."""
+    task = Task("Feeding", 10, "daily")             # daily, but never completed
+
+    # No completed_on and no last_completed -> cannot compute a next date.
+    assert task.next_occurrence() is None
+
+
+# --- Edge case: sorting tolerates malformed times (sinks them to the end) ---
+def test_sorted_by_start_time_sinks_malformed_time_to_end():
+    """A bad start_time is treated like an unscheduled task, not a crash.
+
+    sorted_by_start_time() routes through _start_minute(), so an unparseable
+    value like '8am' returns None and parks the task at the end of the day
+    alongside genuinely unscheduled tasks — matching how detect_conflicts
+    already tolerates bad values.
+    """
+    owner = Owner("Jordan")
+    pet = Pet("Biscuit", "dog")
+    owner.add_pet(pet)
+    pet.add_task(Task("Bad", 10, "daily", start_time="8am"))     # unparseable
+    pet.add_task(Task("Good", 10, "daily", start_time="08:00"))
+    pet.add_task(Task("None", 10, "daily"))                      # no start_time
+    scheduler = Scheduler(owner)
+
+    order = [t.description for t in scheduler.sorted_by_start_time()]
+
+    # The one real time leads; the malformed and unscheduled tasks sink to the
+    # end (their relative order is preserved by the stable sort).
+    assert order[0] == "Good"
+    assert set(order[1:]) == {"Bad", "None"}

@@ -65,19 +65,38 @@ Total: 3 tasks, 45 minutes of care today.
 
 ## 🧪 Testing PawPal+
 
+Run the tests from the project root:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+The tests check the parts that matter most: tasks sort into the right order,
+filtering by pet and status works, finishing a daily task schedules the next
+day, and two tasks booked at the same time get flagged as a conflict. A few
+also cover the tricky bits — an empty schedule, a pet with no tasks, and a
+badly formatted time.
+
+Successful run:
 
 ```
-# Paste your pytest output here
+============================= test session starts ==============================
+platform darwin -- Python 3.13.9, pytest-8.4.2, pluggy-1.5.0
+rootdir: /Users/ritchbarlatier/Downloads/ai110-module2show-pawpal-starter-main
+plugins: anyio-4.10.0
+collected 41 items
+
+tests/test_pawpal.py .........................................           [100%]
+
+============================== 41 passed in 0.02s ==============================
 ```
+
+**Confidence Level: ★★★★☆ (4/5)**
+
+All 41 tests pass and cover every core feature plus the edge cases most likely
+to trip up a scheduler. Writing them even caught and fixed a real bug (sorting
+used to crash on a bad time). Not a full 5 because a couple of things aren't
+handled yet — tasks that cross midnight, and the Streamlit UI has no tests.
 
 ## 📐 Smarter Scheduling
 
